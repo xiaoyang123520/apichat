@@ -137,6 +137,9 @@ button.ic.add:hover{color:var(--accent);background:none}
       <button id="regenBtn" class="ghost2" title="重新生成最后一条回复">↺</button>
       <button id="exportBtn" class="ghost2" title="导出当前对话为 markdown">导出</button>
       <button id="exportAllBtn" class="ghost2" title="导出本渠道全部对话">全导出</button>
+      <button id="backupBtn" class="ghost2" title="备份全部数据（渠道+对话+设置）为 JSON">备份</button>
+      <button id="restoreBtn" class="ghost2" title="从 JSON 备份恢复">恢复</button>
+      <input type="file" id="restoreFile" accept=".json" style="display:none">
       <button id="clearBtn" class="ghost2">清空</button>
     </div>
   </div>
@@ -608,6 +611,42 @@ $('exportAllBtn').onclick=()=>{
   let out='# '+c.name+' · 全部对话（'+convs.length+' 个）\n\n---\n\n';
   convs.forEach(v=>{out+=convToMd(v)+'---\n\n';});
   dlMd(stampName(c,'all'),out);
+};
+
+/* ---------- 备份/恢复 ---------- */
+$('backupBtn').onclick=()=>{
+  const data={};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('apichat.')) data[k]=localStorage.getItem(k);
+  }
+  if(!Object.keys(data).length){alert('没有可备份的数据');return;}
+  const blob=new Blob([JSON.stringify({app:'apichat',version:1,exported:new Date().toISOString(),data})],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='apichat-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+$('restoreBtn').onclick=()=>$('restoreFile').click();
+$('restoreFile').onchange=e=>{
+  const f=e.target.files[0];
+  if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const j=JSON.parse(r.result);
+      if(j.app!=='apichat'||!j.data) throw new Error('格式不对');
+      const keys=Object.keys(j.data);
+      if(!keys.length) throw new Error('备份是空的');
+      if(!confirm(`将恢复 ${keys.length} 项数据，当前数据会被覆盖，继续？`)) return;
+      keys.forEach(k=>{try{localStorage.setItem(k,j.data[k])}catch(e){}});
+      alert('恢复成功，页面即将刷新');
+      location.reload();
+    }catch(err){alert('恢复失败：'+err.message);}
+  };
+  r.readAsText(f);
+  e.target.value='';
 };
 
 /* ---------- 图片输入 ---------- */
